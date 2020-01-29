@@ -59,11 +59,11 @@ public class Cliente implements Serializable {
 	private List<Pedido> pedidos = new ArrayList<>();
 
 	public Cliente() {
-		addPerfil(Perfil.USUARIO);
+		
 	}
 
 	public Cliente(Integer id, String nome, String email, String cpfOuCnpj, TipoCliente tipo, String senha,
-			String empresa, String cargo) {
+			String empresa, String cargo, Perfil perfil) {
 		super();
 		this.id = id;
 		this.nome = nome;
@@ -73,9 +73,9 @@ public class Cliente implements Serializable {
 		this.senha = senha;
 		this.empresa = empresa;
 		this.cargo = cargo;
-		addPerfil(Perfil.USUARIO);
+		addPerfil(perfil);
 	}
-
+	
 	public Integer getId() {
 		return id;
 	}

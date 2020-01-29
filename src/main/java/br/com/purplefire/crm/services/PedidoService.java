@@ -13,8 +13,9 @@ import br.com.purplefire.crm.domain.Cliente;
 import br.com.purplefire.crm.domain.ItemPedido;
 import br.com.purplefire.crm.domain.PagamentoComBoleto;
 import br.com.purplefire.crm.domain.Pedido;
+import br.com.purplefire.crm.domain.Produto;
 import br.com.purplefire.crm.domain.enums.EstadoPagamento;
-import br.com.purplefire.crm.repositories.ClienteRepository;
+import br.com.purplefire.crm.domain.enums.Perfil;
 import br.com.purplefire.crm.repositories.ItemPedidoRepository;
 import br.com.purplefire.crm.repositories.PagamentoRepository;
 import br.com.purplefire.crm.repositories.PedidoRepository;
@@ -41,8 +42,8 @@ public class PedidoService {
 	@Autowired
 	private ItemPedidoRepository itemPedidoRepository;
 
-	@Autowired
-	private ClienteRepository clienteRepository;
+	// @Autowired
+	// private ClienteRepository clienteRepository;
 
 	@Autowired
 	private ClienteService clienteService;
@@ -54,7 +55,8 @@ public class PedidoService {
 		Optional<Pedido> obj = repo.findById(id);
 		UserSpringSecurity user = UserService.authenticated();
 		Cliente cliente = clienteService.find(user.getId());
-		if (!cliente.getId().equals(repo.findById(id).get().getCliente().getId())) {
+		if (!user.hasRole(Perfil.ADMINISTRADOR) && obj.isPresent()
+				&& !cliente.getId().equals(obj.get().getCliente().getId())) {
 			throw new AuthorizationException("Acesso negado.");
 		}
 		return obj.orElseThrow(() -> new ObjectNotFoundException(
@@ -62,9 +64,20 @@ public class PedidoService {
 	}
 
 	public Pedido insert(Pedido obj) {
+		/*
+		 * # O código abaixo é para buscar o ID especificado no POST (em caso de
+		 * administradores precisarem efetuar um pedido em nome de um cliente) -
+		 * Observação: Necessário definir clienteRepository
+		 * 
+		 * Optional<Cliente> cliente =
+		 * clienteRepository.findById(obj.getCliente().getId());
+		 */
+		UserSpringSecurity user = UserService.authenticated();
+		Cliente cliente = clienteService.find(user.getId());
+
 		obj.setId(null);
 		obj.setInstante(new Date());
-		obj.setCliente(clienteRepository.findById(obj.getCliente().getId()).get());
+		obj.setCliente(cliente);
 		obj.getPagamento().setEstado(EstadoPagamento.PENDENTE);
 		obj.getPagamento().setPedido(obj);
 		if (obj.getPagamento() instanceof PagamentoComBoleto) {
@@ -74,13 +87,17 @@ public class PedidoService {
 		obj = repo.save(obj);
 		pagamentoRepository.save(obj.getPagamento());
 		for (ItemPedido ip : obj.getItens()) {
-			ip.setDesconto(0.0);
-			ip.setProduto(produtoRepository.findById(ip.getProduto().getId()).get());
-			ip.setPreco(ip.getProduto().getPreco());
-			ip.setPedido(obj);
+			Optional<Produto> produto = produtoRepository.findById(ip.getProduto().getId());
+			if (produto.isPresent()) {
+				ip.setDesconto(0.0);
+				ip.setProduto(produto.get());
+				ip.setPreco(ip.getProduto().getPreco());
+				ip.setPedido(obj);
+			}
 		}
 		itemPedidoRepository.saveAll(obj.getItens());
 		emailService.sendOrderConfirmationEmail(obj);
+
 		return obj;
 	}
 
